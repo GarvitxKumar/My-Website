@@ -67,5 +67,66 @@
   </script>
 </body>
 </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Anime Ratings</title>
+  <!-- Chart.js library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+    canvas { max-width: 700px; margin: 20px auto; display: block; }
+    input { width: 60px; margin: 5px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>Anime Ratings Chart</h1>
+
+  <!-- Rating input boxes will appear here -->
+  <div id="inputs"></div>
+  <button onclick="updateChart()">Update Chart</button>
+
+  <!-- Chart area -->
+  <canvas id="ratingChart"></canvas>
+
+  <script>
+    // Step 1: Setup episodes (you can change number to add more episodes)
+    const episodes = Array.from({length: 10}, (_, i) => `Ep ${i+1}`); 
+    let ratings = Array(10).fill(5); // default rating = 5
+
+    // Step 2: Create rating input boxes
+    const inputDiv = document.getElementById('inputs');
+    episodes.forEach((ep, i) => {
+      inputDiv.innerHTML += `${ep}: <input type="number" id="ep${i}" value="5" min="1" max="10"><br>`;
+    });
+
+    // Step 3: Create chart
+    const ctx = document.getElementById('ratingChart').getContext('2d');
+    let chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: episodes,
+        datasets: [{
+          label: 'Episode Rating',
+          data: ratings,
+          borderColor: 'blue',
+          borderWidth: 2,
+          fill: false
+        }]
+      },
+      options: { scales: { y: { min: 0, max: 10 } } }
+    });
+
+    // Step 4: Update chart when button clicked
+    function updateChart() {
+      ratings = episodes.map((_, i) => document.getElementById(`ep${i}`).value);
+      chart.data.datasets[0].data = ratings;
+      chart.update();
+    }
+  </script>
+</body>
+</html>
+
 
 
