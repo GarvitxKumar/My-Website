@@ -1,10 +1,31 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>My First GitHub Website</title>
+  <meta charset="UTF-8">
+  <title>Anime Ratings</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <h1>Hello W 🎉</h1>
-  <p>This is my free website hosted on GitHub Pages.</p>
+  <h1>My Anime Rating Chart</h1>
+  <canvas id="ratingChart"></canvas>
+
+  <script>
+    const ctx = document.getElementById('ratingChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['Ep 1', 'Ep 2', 'Ep 3', 'Ep 4', 'Ep 5'],
+        datasets: [{
+          label: 'Ratings',
+          data: [8, 9, 7, 6, 9],
+          borderColor: 'blue',
+          borderWidth: 2,
+          fill: false
+        }]
+      },
+      options: { scales: { y: { min: 0, max: 10 } } }
+    });
+  </script>
 </body>
 </html>
+
