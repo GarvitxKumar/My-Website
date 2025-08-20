@@ -27,5 +27,45 @@
     });
   </script>
 </body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Anime Ratings</title>
+  <!-- Chart.js library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <h1>My Anime Rating Chart</h1>
+  
+  <!-- Chart area -->
+  <canvas id="ratingChart"></canvas>
+
+  <script>
+    // Step 1: Select the canvas
+    const ctx = document.getElementById('ratingChart').getContext('2d');
+
+    // Step 2: Make a chart
+    new Chart(ctx, {
+      type: 'line', // type of chart
+      data: {
+        labels: ['Ep 1', 'Ep 2', 'Ep 3', 'Ep 4', 'Ep 5'], // episode names
+        datasets: [{
+          label: 'Ratings',
+          data: [8, 9, 7, 6, 9], // ratings for each episode
+          borderColor: 'blue',
+          borderWidth: 2,
+          fill: false
+        }]
+      },
+      options: {
+        scales: {
+          y: { min: 0, max: 10 } // ratings range 0-10
+        }
+      }
+    });
+  </script>
+</body>
 </html>
+
 
