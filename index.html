@@ -3,141 +3,472 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Anime Tracker</title>
+  <title>Anime Tracker — Local + AniList Sync</title>
+  <meta name="description" content="Clean anime tracker with optional AniList login. Auto-fills covers/links, and can sync progress with your AniList account." />
   <style>
     :root{
-      --bg:#0b0f14;--panel:#121821;--muted:#263041;--text:#e8f0ff;--sub:#9bb0d1;--accent:#6aa8ff;--accent-2:#6affc9;--danger:#ff6a6a;
+      --bg:#0a0f1a;--card:#0f1626;--card-2:#0b1220;--muted:#1d2740;--line:#223259;--text:#e7efff;--sub:#97a9cc;--accent:#69a7ff;--accent-2:#6affc9;--danger:#ff6a6a;
+      --shadow:0 10px 35px rgba(0,0,0,.35);
     }
-    body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--text)}
-    .container{max-width:1100px;margin:auto;padding:20px}
-    header{display:flex;justify-content:space-between;align-items:center}
-    table{width:100%;border-collapse:separate;border-spacing:0 10px}
-    tbody tr{background:var(--panel)}
-    td,th{padding:8px;text-align:left}
-    img.cover{width:60px;height:80px;object-fit:cover;border-radius:6px;}
-    .links a{margin-right:6px;color:var(--accent);font-size:13px;text-decoration:none}
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1200px 700px at 20% -10%,rgba(77,142,255,.12),transparent 60%),radial-gradient(1200px 700px at 120% -10%,rgba(106,255,201,.08),transparent 60%),var(--bg);color:var(--text)}
+    a{color:var(--accent);text-decoration:none}
+
+    .container{max-width:1150px;margin:0 auto;padding:22px}
+    header{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;margin-bottom:14px}
+    .title{font-size:clamp(22px,3.5vw,34px);font-weight:800;letter-spacing:.3px}
+    .controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    input,select,button{border:1px solid var(--line);background:linear-gradient(180deg,var(--card),#0b1324);color:var(--text);padding:10px 12px;border-radius:12px;font-size:14px}
+    input::placeholder{color:#7f92b7}
+    button{cursor:pointer;border:1px solid transparent;transition:.15s transform ease, .2s box-shadow ease}
+    button:hover{transform:translateY(-1px)}
+    .btn-accent{background:linear-gradient(180deg,var(--accent),#3277ff);color:#001339;font-weight:800}
+    .btn-soft{background:linear-gradient(180deg,#0e1628,#0a1222)}
+    .btn-danger{background:linear-gradient(180deg,#ff7f7f,var(--danger));color:#2a0000;font-weight:800}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;background:linear-gradient(180deg,#0c1528,#0a1120)}
+
+    /* Grid cards */
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    @media(min-width:860px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+    .card{position:relative;background:linear-gradient(180deg,var(--card),var(--card-2));border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+    .cover{width:100%;aspect-ratio:3/4;object-fit:cover;background:#0b1220}
+    .content{padding:10px 12px}
+    .title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+    .name{font-weight:800;line-height:1.2}
+    .links{display:flex;gap:8px}
+    .links a{font-size:12px}
+    .progress{height:8px;background:#17233c;border-radius:999px;overflow:hidden;margin-top:8px}
+    .bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+    .meta{display:flex;justify-content:space-between;align-items:center;color:var(--sub);font-size:12px;margin-top:8px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+
+    footer{margin:28px 4px;color:var(--sub);font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .kbd{border:1px solid var(--line);border-bottom-width:3px;border-radius:8px;padding:2px 6px;font-size:12px;background:#0a1020}
+
+    dialog{border:1px solid var(--line);border-radius:16px;background:#0f1626;color:var(--text);box-shadow:var(--shadow);padding:0;max-width:560px;width:95vw}
+    .modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
+    .modal-body{padding:16px}
+    .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .modal-grid label{display:grid;gap:6px;font-size:13px;color:var(--sub)}
+    .right{display:flex;gap:8px;align-items:center}
+
+    .empty{padding:28px;text-align:center;color:var(--sub)}
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Anime Tracker</h1>
-      <button id="btn-add">+ Add Anime</button>
+      <div class="title">Anime Tracker</div>
+      <div class="controls">
+        <input id="search" placeholder="Search title ( / to focus )" />
+        <select id="filter-status">
+          <option value="">All</option>
+          <option value="CURRENT">Watching</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="PAUSED">On Hold</option>
+          <option value="DROPPED">Dropped</option>
+          <option value="PLANNING">Plan to Watch</option>
+        </select>
+        <select id="source">
+          <option value="auto">Source: Auto</option>
+          <option value="local">Source: Local</option>
+          <option value="anilist">Source: AniList</option>
+        </select>
+        <button id="btn-add" class="btn-accent">+ Add</button>
+        <button id="btn-login" class="btn-soft" title="Login with AniList">Login</button>
+        <button id="btn-logout" class="btn-danger" style="display:none">Logout</button>
+      </div>
     </header>
-    <table>
-      <thead>
-        <tr>
-          <th>Cover</th>
-          <th>Title</th>
-          <th>Progress</th>
-          <th>Status</th>
-          <th>Rating</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
+
+    <section id="grid" class="grid"></section>
+    <div id="empty" class="empty" style="display:none">Nothing here yet. Click <b>+ Add</b> or login to load your AniList.</div>
+
+    <footer>
+      <div>Tip: Press <span class="kbd">/</span> to jump to search. Click <b>+1</b> to update progress.</div>
+      <div>Local data is stored in your browser. AniList data updates your account.
+      </div>
+    </footer>
   </div>
 
+  <!-- Add/Edit Modal (local entries only) -->
   <dialog id="modal">
     <form method="dialog">
-      <h3 id="modal-title">Add Anime</h3>
-      <label>Title <input id="m-title" required></label><br>
-      <label>Status <select id="m-status"><option>Watching</option><option>Completed</option><option>On Hold</option><option>Dropped</option><option>Plan to Watch</option></select></label><br>
-      <label>Episodes Watched <input id="m-watched" type="number" min="0"></label><br>
-      <label>Rating (1–10) <input id="m-rating" type="number" min="1" max="10"></label><br>
-      <menu>
-        <button value="cancel">Cancel</button>
-        <button id="modal-save" value="default">Save</button>
-      </menu>
+      <div class="modal-head">
+        <strong id="modal-title">Add Anime</strong>
+        <div class="right">
+          <button value="cancel" class="btn-soft">Cancel</button>
+          <button id="modal-save" value="default" class="btn-accent">Save</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="modal-grid">
+          <label><span>Title</span><input id="m-title" required placeholder="e.g., Jujutsu Kaisen"/></label>
+          <label><span>Status</span>
+            <select id="m-status">
+              <option value="CURRENT">Watching</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="PAUSED">On Hold</option>
+              <option value="DROPPED">Dropped</option>
+              <option value="PLANNING">Plan to Watch</option>
+            </select>
+          </label>
+          <label><span>Total Episodes</span><input id="m-total" type="number" min="0" placeholder="auto"/></label>
+          <label><span>Episodes Watched</span><input id="m-watched" type="number" min="0" placeholder="0"/></label>
+          <label style="grid-column:1/-1"><span>Auto Info (from AniList)</span>
+            <div id="m-autoinfo" class="pill">Type a title to fetch cover, total, links…</div>
+          </label>
+        </div>
+      </div>
     </form>
   </dialog>
 
 <script>
-const STORAGE_KEY='anime-tracker.v2';
-let data=[];
+/********************
+ * CONFIG
+ ********************/
+const ANILIST_CLIENT_ID = '29670'; // ← replace with your AniList Client ID
+const REDIRECT_URI = location.origin + location.pathname; // must match your AniList app redirect
 
+/********************
+ * STATE
+ ********************/
+const STORAGE_KEY = 'anime-tracker.v3';
+/** Local entries (used when not logged in, or when Source: Local) */
+let localData = [];
+/** AniList cache of entries */
+let aniListData = [];
+let accessToken = null; // AniList OAuth token
+
+/********************
+ * UTIL
+ ********************/
+const $ = s=>document.querySelector(s);
+const $$ = s=>Array.from(document.querySelectorAll(s));
 function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
-function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(data))}
-function load(){try{data=JSON.parse(localStorage.getItem(STORAGE_KEY))||[]}catch{data=[]}render()}
+function toNum(v){const n=Number(v);return Number.isFinite(n)?n:0}
+function progress(o){if(!o.total) return 0; return Math.min(100, Math.round((o.watched/o.total)*100))}
+function escapeHtml(s){return (s||'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
+
+/********************
+ * STORAGE (Local)
+ ********************/
+function loadLocal(){
+  try{ const raw = localStorage.getItem(STORAGE_KEY); localData = raw? JSON.parse(raw) : [];}catch{ localData=[]; }
+}
+function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(localData)); }
+
+/********************
+ * ANILIST API
+ ********************/
+async function gql(query, variables={}, useAuth=false){
+  const res = await fetch('https://graphql.anilist.co',{
+    method:'POST',
+    headers:Object.assign({'Content-Type':'application/json','Accept':'application/json'}, useAuth && accessToken? {Authorization:`Bearer ${accessToken}`} : {}),
+    body:JSON.stringify({query,variables})
+  });
+  if(!res.ok){ throw new Error('AniList error '+res.status); }
+  const json = await res.json();
+  if(json.errors){ console.warn(json.errors); throw new Error('AniList GraphQL error'); }
+  return json.data;
+}
+
+function beginLogin(){
+  if(!ANILIST_CLIENT_ID || ANILIST_CLIENT_ID==='YOUR_CLIENT_ID_HERE'){
+    alert('Set your AniList Client ID in the code first.'); return;
+  }
+  const url = new URL('https://anilist.co/api/v2/oauth/authorize');
+  url.searchParams.set('client_id', ANILIST_CLIENT_ID);
+  url.searchParams.set('response_type', 'token'); // implicit flow for SPAs
+  url.searchParams.set('redirect_uri', REDIRECT_URI);
+  location.assign(url.toString());
+}
+function parseHashForToken(){
+  if(location.hash.includes('access_token=')){
+    const params = new URLSearchParams(location.hash.slice(1));
+    const token = params.get('access_token');
+    const tokenType = params.get('token_type');
+    if(token && tokenType==='Bearer'){
+      accessToken = token;
+      localStorage.setItem('anilist.token', accessToken);
+      history.replaceState({}, document.title, REDIRECT_URI); // clean hash
+    }
+  }
+}
+function loadToken(){ accessToken = localStorage.getItem('anilist.token'); }
+function logout(){ accessToken=null; localStorage.removeItem('anilist.token'); aniListData=[]; render(); toggleAuthButtons(); }
+
+async function fetchViewer(){
+  const q = `query{ Viewer { id name } }`;
+  const d = await gql(q,{},true); return d.Viewer;
+}
+
+async function fetchAniListCollection(){
+  // Pull user's entire anime list in common statuses
+  const q = `
+  query($userId:Int){
+    MediaListCollection(userId:$userId,type:ANIME,status_in:[CURRENT,PLANNING,COMPLETED,PAUSED,DROPPED]){
+      lists{ name entries{ id status score progress media{ id title{romaji} episodes siteUrl coverImage{large} externalLinks{site url} } } }
+    }
+  }`;
+  const viewer = await fetchViewer();
+  const d = await gql(q,{userId:viewer.id},true);
+  const entries = [];
+  for(const list of (d.MediaListCollection?.lists||[])){
+    for(const e of (list.entries||[])){
+      const mal = (e.media.externalLinks||[]).find(x=>x.site==='MyAnimeList');
+      entries.push({
+        id: 'ani_'+e.media.id,
+        mediaId: e.media.id,
+        title: e.media.title?.romaji || 'Unknown',
+        total: e.media.episodes || 0,
+        watched: e.progress || 0,
+        status: e.status || 'CURRENT',
+        coverUrl: e.media.coverImage?.large || '',
+        aniUrl: e.media.siteUrl || '',
+        malUrl: mal? mal.url : '',
+        rating: toNum(e.score)||0,
+        source:'anilist'
+      });
+    }
+  }
+  aniListData = entries;
+}
+
+async function searchMediaByTitle(title){
+  const q = `query($search:String){
+    Media(search:$search,type:ANIME){ id title{romaji} episodes siteUrl coverImage{large medium} externalLinks{site url} }
+  }`;
+  const d = await gql(q,{search:title},false);
+  const m = d.Media; if(!m) return null;
+  const mal = (m.externalLinks||[]).find(x=>x.site==='MyAnimeList');
+  return {
+    mediaId: m.id,
+    title: m.title?.romaji || title,
+    total: m.episodes || 0,
+    coverUrl: m.coverImage?.large || m.coverImage?.medium || '',
+    aniUrl: m.siteUrl || '',
+    malUrl: mal? mal.url : ''
+  };
+}
+
+async function plusOneAni(mediaId,current){
+  // Save progress on AniList
+  const q = `mutation($mediaId:Int,$progress:Int,$status:MediaListStatus){
+    SaveMediaListEntry(mediaId:$mediaId,progress:$progress,status:$status){ id progress status }
+  }`;
+  const next = current + 1;
+  const d = await gql(q,{mediaId,progress:next,status:'CURRENT'},true);
+  return d.SaveMediaListEntry?.progress ?? next;
+}
+
+async function addOrUpdateAniListByTitle(title, watched, status){
+  const info = await searchMediaByTitle(title);
+  if(!info) throw new Error('Not found on AniList');
+  const q = `mutation($mediaId:Int,$progress:Int,$status:MediaListStatus){
+    SaveMediaListEntry(mediaId:$mediaId,progress:$progress,status:$status){ id progress status }
+  }`;
+  await gql(q,{mediaId:info.mediaId,progress:toNum(watched)||0,status:status||'CURRENT'},true);
+  return info; // return media info so UI can show card immediately
+}
+
+/********************
+ * RENDER
+ ********************/
+function currentSource(){
+  const pref = $('#source').value;
+  if(pref==='local') return 'local';
+  if(pref==='anilist') return 'anilist';
+  // auto: prefer AniList when logged in
+  return accessToken? 'anilist' : 'local';
+}
 
 function render(){
-  const body=document.querySelector('#rows');
-  body.innerHTML='';
-  for(const o of data){
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td><img class="cover" src="${o.coverUrl||''}"/></td>
-    <td><div>${o.title}</div><div class="links">${o.aniUrl?`<a href="${o.aniUrl}" target="_blank">Anilist</a>`:''}${o.malUrl?`<a href="${o.malUrl}" target="_blank">MAL</a>`:''}</div></td>
-    <td>${o.watched||0}/${o.total||'?'} eps</td>
-    <td>${o.status}</td>
-    <td>${o.rating||'–'}</td>`;
-    body.appendChild(tr);
+  const grid = $('#grid'); grid.innerHTML='';
+  const q = $('#search').value.trim().toLowerCase();
+  const st = $('#filter-status').value;
+  const src = currentSource();
+  let list = src==='anilist'? aniListData : localData;
+  list = list.filter(o=>{
+    const okQ = !q || (o.title||'').toLowerCase().includes(q);
+    const okS = !st || (o.status===st);
+    return okQ && okS;
+  });
+
+  if(!list.length){ $('#empty').style.display='block'; } else { $('#empty').style.display='none'; }
+
+  for(const o of list){
+    const card = document.createElement('div'); card.className='card'; card.dataset.id=o.id;
+    card.innerHTML = `
+      <img class="cover" alt="cover" src="${o.coverUrl||''}"/>
+      <div class="content">
+        <div class="title-row">
+          <div class="name">${escapeHtml(o.title||'Untitled')}</div>
+          <div class="links">
+            ${o.aniUrl? `<a href="${o.aniUrl}" target="_blank" title="AniList">Ani</a>`:''}
+            ${o.malUrl? `<a href="${o.malUrl}" target="_blank" title="MyAnimeList">MAL</a>`:''}
+          </div>
+        </div>
+        <div class="progress"><div class="bar" style="width:${progress(o)}%"></div></div>
+        <div class="meta">
+          <div>${o.watched||0} / ${o.total||'?'} eps</div>
+          <div class="row">
+            ${src==='anilist'?
+              `<button class="btn-accent" data-act="plus1" data-mid="${o.mediaId}">+1</button>`:
+              `<button class="btn-accent" data-act="plus1-local">+1</button>
+               <button class="btn-soft" data-act="edit">Edit</button>
+               <button class="btn-danger" data-act="del">Del</button>`
+            }
+          </div>
+        </div>
+      </div>`;
+    grid.appendChild(card);
   }
 }
 
-async function fetchAniList(title){
-  const query=`query ($search: String){Media(search:$search,type:ANIME){id siteUrl title{romaji} episodes coverImage{medium} externalLinks{site url}}}`;
-  const res=await fetch('https://graphql.anilist.co',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,variables:{search:title}})});
-  const json=await res.json();
-  return json.data?.Media;
+/********************
+ * EVENTS
+ ********************/
+function toggleAuthButtons(){
+  const logged = !!accessToken;
+  $('#btn-login').style.display = logged? 'none':'inline-block';
+  $('#btn-logout').style.display = logged? 'inline-block':'none';
 }
 
-const modal=document.querySelector('#modal');
-const titleInput=document.querySelector('#m-title');
-let currentEdit=null;
+$('#btn-add').addEventListener('click',()=>{
+  if(currentSource()==='anilist' && accessToken){
+    // Quick add: prompt title and optional watched
+    const t = prompt('Title to add (AniList search):'); if(!t) return;
+    const w = Number(prompt('Episodes watched (optional):')||0);
+    addOrUpdateAniListByTitle(t,w,'CURRENT').then(info=>{
+      // optimistic: add to local view of AniList list
+      const existing = aniListData.find(x=>x.mediaId===info.mediaId);
+      const entry = {id:'ani_'+info.mediaId,mediaId:info.mediaId,title:info.title,total:info.total,watched:w,status:'CURRENT',coverUrl:info.coverUrl,aniUrl:info.aniUrl,malUrl:info.malUrl,source:'anilist'};
+      if(existing){ Object.assign(existing, entry); } else { aniListData.unshift(entry); }
+      render();
+    }).catch(e=>alert('Add failed: '+e.message));
+  }else{
+    openModal();
+  }
+});
+
+$('#grid').addEventListener('click',(e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  const card = e.target.closest('.card'); if(!card) return;
+  const id = card.dataset.id;
+  const src = currentSource();
+
+  if(btn.dataset.act==='plus1' && src==='anilist'){
+    const item = aniListData.find(x=>x.id===id); if(!item) return;
+    btn.disabled=true;
+    plusOneAni(item.mediaId, item.watched||0).then(newProg=>{
+      item.watched = newProg; render();
+    }).catch(err=>alert('Update failed: '+err.message)).finally(()=>btn.disabled=false);
+  }
+
+  if(btn.dataset.act==='plus1-local' && src!=='anilist'){
+    const item = localData.find(x=>x.id===id); if(!item) return;
+    item.watched = Math.min((item.watched||0)+1, item.total||Infinity);
+    saveLocal(); render();
+  }
+
+  if(btn.dataset.act==='edit' && src!=='anilist'){
+    const item = localData.find(x=>x.id===id); if(item) openModal(item);
+  }
+
+  if(btn.dataset.act==='del' && src!=='anilist'){
+    if(confirm('Delete this entry?')){ localData = localData.filter(x=>x.id!==id); saveLocal(); render(); }
+  }
+});
+
+$('#search').addEventListener('input', render);
+$('#filter-status').addEventListener('change', render);
+$('#source').addEventListener('change', render);
+
+document.addEventListener('keydown',(e)=>{
+  if(e.key==='/' && document.activeElement.tagName!=='INPUT' && document.activeElement.tagName!=='TEXTAREA'){
+    e.preventDefault(); $('#search').focus();
+  }
+});
+
+$('#btn-login').addEventListener('click', beginLogin);
+$('#btn-logout').addEventListener('click', logout);
+
+/********************
+ * MODAL (Local add/edit)
+ ********************/
+const modal = $('#modal');
+let currentEdit = null;
 
 function openModal(obj){
-  document.querySelector('#modal-title').textContent=obj?'Edit Anime':'Add Anime';
-  titleInput.value=obj?.title||'';
-  document.querySelector('#m-status').value=obj?.status||'Watching';
-  document.querySelector('#m-watched').value=obj?.watched||0;
-  document.querySelector('#m-rating').value=obj?.rating||'';
-  currentEdit=obj;
+  $('#modal-title').textContent = obj? 'Edit Anime' : 'Add Anime';
+  $('#m-title').value = obj?.title || '';
+  $('#m-status').value = obj?.status || 'CURRENT';
+  $('#m-total').value = obj?.total ?? '';
+  $('#m-watched').value = obj?.watched ?? 0;
+  $('#m-autoinfo').textContent = 'Type a title to fetch cover, total, links…';
+  currentEdit = obj || null;
+  modal.returnValue='';
   modal.showModal();
 }
 
-// auto fetch when typing
-let timer;
-titleInput?.addEventListener('input',()=>{
-  clearTimeout(timer);
-  timer=setTimeout(async()=>{
-    if(!titleInput.value.trim())return;
-    const info=await fetchAniList(titleInput.value.trim());
-    if(info){
-      titleInput.dataset.cover=info.coverImage?.medium||'';
-      titleInput.dataset.ani=info.siteUrl;
-      const mal=info.externalLinks?.find(x=>x.site==='MyAnimeList');
-      titleInput.dataset.mal=mal?mal.url:'';
-      titleInput.dataset.total=info.episodes||0;
-    }
-  },800);
+let tmr; $('#m-title').addEventListener('input',()=>{
+  clearTimeout(tmr);
+  tmr = setTimeout(async()=>{
+    const t = $('#m-title').value.trim(); if(!t) return;
+    try{
+      const info = await searchMediaByTitle(t);
+      if(info){
+        $('#m-total').placeholder = info.total? String(info.total):'auto';
+        $('#m-autoinfo').innerHTML = `Found on AniList · <a href="${info.aniUrl}" target="_blank">Open</a> ${info.malUrl? '· <a href="'+info.malUrl+'" target="_blank">MAL</a>':''}`;
+        // stash on input dataset so we can save to local entry
+        $('#m-title').dataset.cover = info.coverUrl||'';
+        $('#m-title').dataset.ani = info.aniUrl||'';
+        $('#m-title').dataset.mal = info.malUrl||'';
+        $('#m-title').dataset.total = info.total||0;
+      }
+    }catch{ /* ignore */ }
+  },700);
 });
 
 modal.addEventListener('close',()=>{
-  if(modal.returnValue==='cancel')return;
-  const obj={
-    id:currentEdit?.id||uid(),
-    title:titleInput.value.trim(),
-    status:document.querySelector('#m-status').value,
-    watched:Number(document.querySelector('#m-watched').value)||0,
-    rating:Number(document.querySelector('#m-rating').value)||0,
-    coverUrl:titleInput.dataset.cover||currentEdit?.coverUrl||'',
-    aniUrl:titleInput.dataset.ani||currentEdit?.aniUrl||'',
-    malUrl:titleInput.dataset.mal||currentEdit?.malUrl||'',
-    total:Number(titleInput.dataset.total)||currentEdit?.total||0
+  if(modal.returnValue==='cancel') return;
+  const title = $('#m-title').value.trim(); if(!title){ alert('Title is required'); return; }
+  const payload = {
+    id: currentEdit?.id || uid(),
+    title,
+    status: $('#m-status').value,
+    total: toNum($('#m-total').value) || toNum($('#m-title').dataset.total) || 0,
+    watched: toNum($('#m-watched').value) || 0,
+    coverUrl: $('#m-title').dataset.cover || currentEdit?.coverUrl || '',
+    aniUrl: $('#m-title').dataset.ani || currentEdit?.aniUrl || '',
+    malUrl: $('#m-title').dataset.mal || currentEdit?.malUrl || '',
+    rating: currentEdit?.rating || 0,
+    source:'local'
   };
   if(currentEdit){
-    data=data.map(x=>x.id===currentEdit.id?obj:x);
+    localData = localData.map(x=>x.id===currentEdit.id? {...x,...payload} : x);
   }else{
-    data.push(obj);
+    localData.unshift(payload);
   }
-  save();render();
+  saveLocal(); render();
 });
 
-document.querySelector('#btn-add').addEventListener('click',()=>openModal());
-
-load();
+/********************
+ * INIT
+ ********************/
+(function init(){
+  parseHashForToken();
+  loadToken();
+  toggleAuthButtons();
+  loadLocal();
+  const src = currentSource();
+  if(accessToken){
+    fetchAniListCollection().then(()=>{ render(); }).catch(err=>{ console.warn(err); render(); });
+  }else{
+    render();
+  }
+})();
 </script>
 </body>
 </html>
-
-
