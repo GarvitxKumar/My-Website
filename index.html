@@ -1,1 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Anime Tracker</title>
+  <meta name="description" content="Simple anime tracking app that saves to your browser (localStorage). Export/Import JSON anytime." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Ccircle cx='64' cy='64' r='62' fill='%23111'/%3E%3Ctext x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='74' fill='%23fff'%3EA%3C/text%3E%3C/svg%3E"/>
+  <style>
+    :root{
+      --bg: #0b0f14; --panel:#121821; --muted:#263041; --text:#e8f0ff; --sub:#9bb0d1; --accent:#6aa8ff; --accent-2:#6affc9; --danger:#ff6a6a;
+      --shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,var(--bg),#0d1320 60%);color:var(--text);}
+    .container{max-width:1100px;margin:0 auto;padding:24px;}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .title{font-size:clamp(22px,4vw,34px);font-weight:800;letter-spacing:.5px}
+    .hint{color:var(--sub);font-size:13px}
+    .panel{background:var(--panel);border:1px solid var(--muted);border-radius:16px;box-shadow:var(--shadow)}
+    .toolbar{display:grid;grid-template-columns:1fr 1fr; gap:12px;padding:14px}
+    @media(min-width:800px){.toolbar{grid-template-columns:2fr 1fr 1fr 1fr 160px 160px}}
+    input,select,button,textarea{border-radius:12px;border:1px solid var(--muted);background:#0c1220;color:var(--text);padding:10px 12px;font-size:14px}
+    input::placeholder,textarea::placeholder{color:#7989a7}
+    button{cursor:pointer;border:1px solid transparent;background:linear-gradient(180deg,#1a2435,#121a2a);transition:.15s transform ease;}
+    button:hover{transform:translateY(-1px)}
+    .btn-accent{background:linear-gradient(180deg,var(--accent),#3678ff);color:#00143a;font-weight:700}
+    .btn-soft{background:#141d2e}
+    .btn-danger{background:linear-gradient(180deg,#ff7f7f,var(--danger));color:#2a0000;font-weight:700}
+    .grid{display:grid;gap:12px}
+
+    /* table */
+    table{width:100%;border-collapse:separate;border-spacing:0 10px}
+    thead th{font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:var(--sub);text-align:left;padding:0 10px}
+    tbody tr{background:#0e1524;border:1px solid var(--muted);}
+    tbody tr td{padding:12px 10px;vertical-align:middle}
+    tbody tr:first-child td{border-top-left-radius:12px;border-top-right-radius:12px}
+    tbody tr:last-child td{border-bottom-left-radius:12px;border-bottom-right-radius:12px}
+    .progress{height:8px;background:#1a2437;border-radius:999px;overflow:hidden}
+    .bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid var(--muted);font-size:12px;background:#0c1322}
+    .fav{filter:drop-shadow(0 0 6px rgba(255,226,88,.5))}
+    .row-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+    /* footer */
+    footer{margin:32px 0;color:var(--sub);font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    a{color:var(--accent)}
+    .kbd{border:1px solid var(--muted);border-bottom-width:3px;border-radius:8px;padding:2px 6px;font-size:12px;background:#0a1020}
+
+    /* modal */
+    dialog{border:1px solid var(--muted);border-radius:16px;background:#0e1524;color:var(--text);box-shadow:var(--shadow);padding:0;max-width:560px;width:95vw}
+    .modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--muted)}
+    .modal-body{padding:16px}
+    .modal-grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media(min-width:560px){.modal-grid{grid-template-columns:1fr 1fr}}
+    .right{display:flex;gap:8px;align-items:center}
+
+    /* empty */
+    .empty{padding:28px;text-align:center;color:var(--sub)}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <div class="title">Anime Tracker</div>
+        <div class="hint">Track what you're watching, progress, and ratings. Saved locally in your browser.</div>
+      </div>
+      <div class="right">
+        <button class="btn-soft" id="btn-export" title="Export to JSON">Export</button>
+        <label class="btn-soft" for="import-input" title="Import from JSON" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">Import<input id="import-input" type="file" accept="application/json" style="display:none" /></label>
+        <button class="btn-danger" id="btn-reset" title="Clear all data">Reset</button>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="toolbar">
+        <input id="search" placeholder="Search title... (Press / to focus)"/>
+        <select id="filter-status">
+          <option value="">All Statuses</option>
+          <option>Watching</option>
+          <option>Completed</option>
+          <option>On Hold</option>
+          <option>Dropped</option>
+          <option>Plan to Watch</option>
+        </select>
+        <select id="sort-by">
+          <option value="updatedAt-desc">Sort: Last Updated</option>
+          <option value="title-asc">Title A→Z</option>
+          <option value="title-desc">Title Z→A</option>
+          <option value="progress-desc">Progress High→Low</option>
+          <option value="rating-desc">Rating High→Low</option>
+          <option value="createdAt-asc">Oldest First</option>
+        </select>
+        <select id="min-rating">
+          <option value="0">Min Rating: Any</option>
+          <option value="6">6+</option>
+          <option value="7">7+</option>
+          <option value="8">8+</option>
+          <option value="9">9+</option>
+        </select>
+        <button id="btn-add" class="btn-accent">+ Add Anime</button>
+        <button id="btn-sample" class="btn-soft" title="Load demo data">Load Sample</button>
+      </div>
+
+      <div style="overflow-x:auto;padding:6px 12px 16px 12px">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:26px">Fav</th>
+              <th>Title</th>
+              <th>Progress</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Rating</th>
+              <th style="width:260px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div id="empty" class="empty" style="display:none">No anime yet. Click <b>+ Add Anime</b> to get started.</div>
+      </div>
+    </section>
+
+    <footer>
+      <div>
+        Tip: Press <span class="kbd">/</span> to jump to search. Click rating to edit fast.
+      </div>
+      <div>
+        Made with ❤ | <a href="https://github.com/" target="_blank" rel="noreferrer">Deploy on GitHub Pages</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <dialog id="modal">
+    <form method="dialog">
+      <div class="modal-head">
+        <strong id="modal-title">Add Anime</strong>
+        <div class="right">
+          <button value="cancel" class="btn-soft">Cancel</button>
+          <button id="modal-save" value="default" class="btn-accent">Save</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="modal-grid">
+          <label class="grid"><span>Title</span><input id="m-title" required placeholder="e.g., Jujutsu Kaisen"/></label>
+          <label class="grid"><span>Status</span>
+            <select id="m-status">
+              <option>Watching</option>
+              <option>Completed</option>
+              <option>On Hold</option>
+              <option>Dropped</option>
+              <option>Plan to Watch</option>
+            </select>
+          </label>
+          <label class="grid"><span>Total Episodes</span><input id="m-total" type="number" min="0" placeholder="e.g., 24"/></label>
+          <label class="grid"><span>Episodes Watched</span><input id="m-watched" type="number" min="0" placeholder="e.g., 6"/></label>
+          <label class="grid"><span>Rating (1–10)</span><input id="m-rating" type="number" min="1" max="10" placeholder="e.g., 8"/></label>
+          <label class="grid"><span>Favorite</span>
+            <select id="m-fav">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </label>
+        </div>
+        <label class="grid" style="margin-top:12px"><span>Notes</span><textarea id="m-notes" rows="3" placeholder="Optional notes..."></textarea></label>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const $ = s => document.querySelector(s);
+    const $$ = s => Array.from(document.querySelectorAll(s));
+
+    const STORAGE_KEY = 'anime-tracker.v1';
+
+    /** @type {Array<{id:string,title:string,total:number,watched:number,status:string,rating:number,notes:string,favorite:boolean,createdAt:number,updatedAt:number}>} */
+    let data = [];
+    let sortBy = 'updatedAt';
+    let sortDir = 'desc';
+
+    function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
+
+    function load(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(raw){
+          const obj = JSON.parse(raw);
+          data = Array.isArray(obj)? obj : obj.data || [];
+        }
+      }catch(e){console.error('Load failed',e)}
+      render();
+    }
+
+    function save(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function add(item){
+      const now = Date.now();
+      data.push({id:uid(), title:item.title.trim(), total:toNum(item.total), watched:toNum(item.watched), status:item.status, rating:toNum(item.rating), notes:item.notes||'', favorite:!!item.favorite, createdAt:now, updatedAt:now});
+      save();
+      render();
+    }
+
+    function update(id,patch){
+      const i = data.findIndex(x=>x.id===id);
+      if(i>-1){
+        data[i] = {...data[i], ...patch, updatedAt: Date.now()};
+        save();
+        render();
+      }
+    }
+
+    function remove(id){
+      data = data.filter(x=>x.id!==id); save(); render();
+    }
+
+    function toNum(v){
+      const n = Number(v); return Number.isFinite(n)? n : 0;
+    }
+
+    function fmtDate(ts){
+      const d = new Date(ts); return d.toLocaleDateString(undefined,{year:'2-digit',month:'short',day:'2-digit'});
+    }
+
+    function progress(o){
+      if(!o.total) return 0; return Math.min(100, Math.round((o.watched/o.total)*100));
+    }
+
+    function filtered(){
+      const q = $('#search').value.trim().toLowerCase();
+      const st = $('#filter-status').value;
+      const min = Number($('#min-rating').value||0);
+      return data.filter(o=>{
+        const okQ = !q || o.title.toLowerCase().includes(q);
+        const okS = !st || o.status===st;
+        const okR = !min || (o.rating||0) >= min;
+        return okQ && okS && okR;
+      });
+    }
+
+    function sortRows(rows){
+      const [key,dir] = $('#sort-by').value.split('-');
+      sortBy=key; sortDir=dir;
+      rows.sort((a,b)=>{
+        const va = a[key] ?? 0; const vb = b[key] ?? 0;
+        if(typeof va==='string' && typeof vb==='string'){
+          return dir==='asc'? va.localeCompare(vb) : vb.localeCompare(va);
+        }
+        return dir==='asc'? (va - vb) : (vb - va);
+      });
+      return rows;
+    }
+
+    function render(){
+      const body = $('#rows');
+      const list = sortRows(filtered());
+      body.innerHTML = '';
+      $('#empty').style.display = list.length? 'none':'block';
+      for(const o of list){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="text-align:center">
+            <button title="Toggle Favorite" data-act="fav" class="btn-soft" style="padding:6px 8px">${o.favorite? '★':'☆'}</button>
+          </td>
+          <td>
+            <div style="font-weight:700">${escapeHtml(o.title)}</div>
+            <div class="hint" style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">
+              <span class="pill">Updated: ${fmtDate(o.updatedAt)}</span>
+              ${o.notes? `<span class="pill" title="Notes">📝 ${escapeHtml(o.notes.slice(0,32))}${o.notes.length>32? '…':''}</span>`:''}
+            </div>
+          </td>
+          <td>
+            <div class="progress"><div class="bar" style="width:${progress(o)}%"></div></div>
+            <div class="hint" style="margin-top:6px">${o.watched||0} / ${o.total||0} eps (${progress(o)}%)</div>
+          </td>
+          <td>${o.total||0}</td>
+          <td><span class="pill">${o.status}</span></td>
+          <td>
+            <button class="btn-soft" data-act="rate" title="Click to set rating" style="padding:6px 10px">⭐ ${o.rating||'–'}</button>
+          </td>
+          <td>
+            <div class="row-actions">
+              <button class="btn-accent" data-act="plus1">+1 ep</button>
+              <button class="btn-soft" data-act="edit">Edit</button>
+              <button class="btn-danger" data-act="del">Delete</button>
+            </div>
+          </td>`;
+        if(o.favorite) tr.querySelector('[data-act="fav"]').classList.add('fav');
+        tr.dataset.id = o.id;
+        body.appendChild(tr);
+      }
+    }
+
+    function escapeHtml(s){
+      return (s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
+    }
+
+    // Handlers
+    $('#btn-add').addEventListener('click', ()=> openModal());
+    $('#btn-sample').addEventListener('click', loadSample);
+    $('#btn-export').addEventListener('click', doExport);
+    $('#btn-reset').addEventListener('click', doReset);
+    $('#import-input').addEventListener('change', doImport);
+
+    $('#search').addEventListener('input', render);
+    $('#filter-status').addEventListener('change', render);
+    $('#sort-by').addEventListener('change', render);
+    $('#min-rating').addEventListener('change', render);
+
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === '/' && document.activeElement.tagName!=='INPUT' && document.activeElement.tagName!=='TEXTAREA'){
+        e.preventDefault(); $('#search').focus();
+      }
+    });
+
+    $('#rows').addEventListener('click', (e)=>{
+      const btn = e.target.closest('button'); if(!btn) return;
+      const tr = e.target.closest('tr'); const id = tr?.dataset.id; if(!id) return;
+      const act = btn.dataset.act;
+      const obj = data.find(x=>x.id===id);
+      if(!obj) return;
+      if(act==='plus1'){
+        update(id,{watched: Math.min((obj.watched||0)+1, obj.total||Infinity)});
+      }else if(act==='edit'){
+        openModal(obj);
+      }else if(act==='del'){
+        if(confirm('Delete this entry?')) remove(id);
+      }else if(act==='fav'){
+        update(id,{favorite: !obj.favorite});
+      }else if(act==='rate'){
+        const r = prompt('Set rating (1–10). Leave empty to clear.', obj.rating||'');
+        if(r===null) return; const n = Number(r);
+        update(id,{rating: (r.trim()===''? 0 : (Number.isFinite(n)? Math.max(1, Math.min(10,n)) : obj.rating||0))});
+      }
+    });
+
+    // Modal logic
+    const modal = $('#modal');
+    function openModal(obj){
+      $('#modal-title').textContent = obj? 'Edit Anime':'Add Anime';
+      $('#m-title').value = obj?.title || '';
+      $('#m-status').value = obj?.status || 'Watching';
+      $('#m-total').value = obj?.total ?? '';
+      $('#m-watched').value = obj?.watched ?? '';
+      $('#m-rating').value = obj?.rating || '';
+      $('#m-fav').value = obj?.favorite? 'true':'false';
+      $('#m-notes').value = obj?.notes || '';
+      modal.returnValue = '';
+      modal.showModal();
+      const handler = (ev)=>{
+        ev.preventDefault();
+        if(modal.returnValue==='cancel'){ modal.close(); modal.removeEventListener('close',handler); return; }
+        const payload = {
+          title: $('#m-title').value,
+          status: $('#m-status').value,
+          total: toNum($('#m-total').value),
+          watched: toNum($('#m-watched').value),
+          rating: toNum($('#m-rating').value),
+          favorite: $('#m-fav').value==='true',
+          notes: $('#m-notes').value
+        };
+        if(!payload.title.trim()){ alert('Title is required'); return; }
+        if(obj) update(obj.id, payload); else add(payload);
+        modal.removeEventListener('close',handler);
+      };
+      modal.addEventListener('close', handler);
+    }
+
+    // Export/Import
+    function doExport(){
+      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'anime-tracker.json'; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function doImport(ev){
+      const file = ev.target.files?.[0]; if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const obj = JSON.parse(String(reader.result));
+          if(!Array.isArray(obj)) throw new Error('Invalid file');
+          if(confirm('Replace current data with imported data?')){
+            data = obj; save(); render();
+          }
+        }catch(e){ alert('Import failed: '+e.message) }
+      };
+      reader.readAsText(file);
+      ev.target.value='';
+    }
+
+    function doReset(){
+      if(confirm('This will delete all your anime from this browser. Continue?')){
+        data = []; save(); render();
+      }
+    }
+
+    function loadSample(){
+      if(!confirm('Load sample data? This adds a few entries (you can delete them later).')) return;
+      const now = Date.now();
+      data.push(
+        {id:uid(), title:'Demon Slayer: Kimetsu no Yaiba', total:26, watched:14, status:'Watching', rating:8, notes:'Season 1 rewatch', favorite:true, createdAt:now-9e7, updatedAt:now-6e7},
+        {id:uid(), title:'Attack on Titan', total:87, watched:87, status:'Completed', rating:9, notes:'Masterpiece', favorite:true, createdAt:now-2e8, updatedAt:now-1e7},
+        {id:uid(), title:'Spy x Family', total:25, watched:10, status:'On Hold', rating:7, notes:'Wholesome vibes', favorite:false, createdAt:now-5e7, updatedAt:now-3e7},
+        {id:uid(), title:'Solo Leveling', total:12, watched:12, status:'Completed', rating:8, notes:'OP MC done right', favorite:false, createdAt:now-7e7, updatedAt:now-2e7},
+      );
+      save(); render();
+    }
+
+    load();
+  </script>
+</body>
+</html>
 
